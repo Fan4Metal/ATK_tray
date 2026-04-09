@@ -65,6 +65,18 @@ def format_timedelta(delta: timedelta) -> str:
     return f"{days} days, {hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
+def get_device_path(vid, pid_wireless, pid_wired, usage_page, usage):
+    device_list = hid.enumerate(vid, pid_wireless)
+    if not device_list:
+        device_list = hid.enumerate(vid, pid_wired)
+        if not device_list:
+            raise RuntimeError(f"The specified device ({vid:X}:{pid_wireless:X} or {vid:X}:{pid_wired:X}) cannot be found.")
+    for device in device_list:
+        if device["usage_page"] == usage_page and device["usage"] == usage:
+            return device["path"]
+
+
+# TODO перенести device_path в detect_mouse
 def detect_mouse():
     for mouse in models.atk_mice:
         wireless = hid.enumerate(mouse.vid, mouse.pid_wireless)
@@ -97,15 +109,57 @@ def get_battery(mouse: models.MouseClass):
     return battery, wired
 
 
-def get_device_path(vid, pid_wireless, pid_wired, usage_page, usage):
-    device_list = hid.enumerate(vid, pid_wireless)
-    if not device_list:
-        device_list = hid.enumerate(vid, pid_wired)
-        if not device_list:
-            raise RuntimeError(f"The specified device ({vid:X}:{pid_wireless:X} or {vid:X}:{pid_wired:X}) cannot be found.")
-    for device in device_list:
-        if device["usage_page"] == usage_page and device["usage"] == usage:
-            return device["path"]
+def get_battery(device_path: bytes, wired: bool = False):
+    device = hid.device()
+    try:
+        device.open_path(device_path)
+
+        report = [0] * 64
+        report[0] = 0x08
+
+        if wired:
+            # Wired battery request
+            report[1] = 0x7C
+            report[2] = 0x72
+            report[3] = 0x02
+            report[4] = 0x00
+            report[5] = 0x00
+            report[6] = 0x07
+            report[7] = 0x01
+        else:
+            # Wireless battery request
+            report[1] = 0x7D
+            report[2] = 0x72
+            report[3] = 0x02
+            report[4] = 0x00
+            report[5] = 0x01
+            report[6] = 0x07
+            report[7] = 0x01
+
+        logging.info(f"Sending report: {report}")
+        device.write(report)
+
+        time.sleep(0.1)
+
+        res = device.read(64)
+        logging.info(f"Received report: {res}")
+
+        if not res or len(res) < 8:
+            raise RuntimeError("No valid response from device")
+
+        # Проверка, что это именно ответ на battery query
+        if res[1] != 0x72 or res[5] != 0x07:
+            raise RuntimeError(f"Unexpected response: {res}")
+
+        battery = res[7]
+
+        return battery
+
+    finally:
+        try:
+            device.close()
+        except:
+            pass
 
 
 def create_icon(text: str, color, font):

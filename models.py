@@ -69,10 +69,19 @@ atk_a9_ultimate = MouseClass(
     usage_page=0xFF02,
     usage=0x0002,
 )
+atk_zero = MouseClass(
+    model="ATK Zero",
+    vid=0x373B,
+    pid_wireless=0x1155,
+    pid_wired=0x1154,
+    usage_page=0xFF05,
+    usage=0x0001,
+)
 
 atk_mice = [
     atk_f1_ultimate,
     atk_a9_ultimate,
+    atk_zero,
     vxe_mad_r,
     vxe_mad_r_major_plus,
     vxe_r1_pro_max,
