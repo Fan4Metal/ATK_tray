@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 __all__ = ["atk_mice", "MouseClass"]
 
@@ -11,6 +12,8 @@ class MouseClass:
     pid_wired: int
     usage_page: int
     usage: int
+    device_path: Optional[str] = None
+    wired_connection: Optional[bool] = None
 
 
 atk_f1_ultimate = MouseClass(

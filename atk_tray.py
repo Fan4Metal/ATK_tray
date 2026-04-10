@@ -31,11 +31,11 @@ font = "consola.ttf"
 
 
 def get_resource(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+    if hasattr(sys, "_MEIPASS"):
+        base_dir = sys._MEIPASS
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, relative_path)
 
 
 def save_reg(data):
@@ -65,34 +65,28 @@ def format_timedelta(delta: timedelta) -> str:
     return f"{days} days, {hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def get_device_path(vid, pid_wireless, pid_wired, usage_page, usage):
-    device_list = hid.enumerate(vid, pid_wireless)
-    if not device_list:
-        device_list = hid.enumerate(vid, pid_wired)
-        if not device_list:
-            raise RuntimeError(f"The specified device ({vid:X}:{pid_wireless:X} or {vid:X}:{pid_wired:X}) cannot be found.")
-    for device in device_list:
-        if device["usage_page"] == usage_page and device["usage"] == usage:
-            return device["path"]
-
-
-# TODO перенести device_path в detect_mouse
 def detect_mouse():
-    for mouse in models.atk_mice:
-        wireless = hid.enumerate(mouse.vid, mouse.pid_wireless)
-        wired = hid.enumerate(mouse.vid, mouse.pid_wired)
-        if wireless or wired:
-            logging.info(f"Detected model: {mouse.model}")
-            return mouse
+    hid_devices: dict = hid.enumerate()
+    for device in hid_devices:
+        for mouse in models.atk_mice:
+            if (
+                device["vendor_id"] == mouse.vid
+                and (device["product_id"] == mouse.pid_wireless or device["product_id"] == mouse.pid_wired)
+                and device["usage_page"] == mouse.usage_page
+                and device["usage"] == mouse.usage
+            ):
+                if device["product_id"] == mouse.pid_wireless:
+                    mouse.wired_connection = False
+                else:
+                    mouse.wired_connection = True
+                mouse.device_path = device["path"]
+                logging.info(f"Detected model: {mouse.model}")
+                return mouse
 
 
 def get_battery(mouse: models.MouseClass):
     device = hid.device()
-    try:
-        device_path = get_device_path(mouse.vid, mouse.pid_wireless, mouse.pid_wired, mouse.usage_page, mouse.usage)
-    except RuntimeError:
-        return
-    device.open_path(device_path)
+    device.open_path(mouse.device_path)
     report = [0] * 17
     report[0] = 8  # Report ID
     report[1] = 4
@@ -109,7 +103,8 @@ def get_battery(mouse: models.MouseClass):
     return battery, wired
 
 
-def get_battery(device_path: bytes, wired: bool = False):
+# TODO make get_battery and get_battery1 work the same for two protocols
+def get_battery1(device_path: bytes, wired: bool = False):
     device = hid.device()
     try:
         device.open_path(device_path)
@@ -234,6 +229,12 @@ class MyFrame(wx.Frame):
         self.battery_str = ""
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         self.Centre()
+
+        self.icon_battery_0 = wx.Icon(get_resource(R"icons\battery_0.ico"))
+        self.icon_battery_50 = wx.Icon(get_resource(R"icons\battery_50.ico"))
+        self.icon_battery_100 = wx.Icon(get_resource(R"icons\battery_100.ico"))
+        self.icon_battery_100_green = wx.Icon(get_resource(R"icons\battery_100_green.ico"))
+
         self.mouse = detect_mouse()
 
         self.notification = NotificationMessage(title=self.mouse.model, message="Charged 100%")
@@ -291,7 +292,7 @@ class MyFrame(wx.Frame):
             self.stop_animation = True
             if self.animation_thread.is_alive():
                 self.animation_thread.join()
-            self.tray_icon.SetIcon(wx.Icon(get_resource(R".\icons\battery_100_green.ico")), self.get_tooltip())
+            self.tray_icon.SetIcon(self.icon_battery_100_green, self.get_tooltip())
             if not self.fullcharged:
                 self.fullcharged = True
                 self.notification.Show(timeout=wx.adv.NotificationMessage.Timeout_Auto)
@@ -307,7 +308,7 @@ class MyFrame(wx.Frame):
             self.battery_str = str(battery)
             if self.animation_thread.is_alive():
                 self.animation_thread.join()
-            self.tray_icon.SetIcon(wx.Icon(get_resource(R".\icons\battery_100.ico")), self.get_tooltip())
+            self.tray_icon.SetIcon(self.icon_battery_100, self.get_tooltip())
             return
 
         self.fullcharged = False
@@ -318,11 +319,11 @@ class MyFrame(wx.Frame):
 
     def charge_animation(self):
         while not self.stop_animation:
-            self.tray_icon.SetIcon(wx.Icon(get_resource(R".\icons\battery_0.ico")), self.get_tooltip())
+            self.tray_icon.SetIcon(self.icon_battery_0, self.get_tooltip())
             time.sleep(0.5)
-            self.tray_icon.SetIcon(wx.Icon(get_resource(R".\icons\battery_50.ico")), self.get_tooltip())
+            self.tray_icon.SetIcon(self.icon_battery_50, self.get_tooltip())
             time.sleep(0.5)
-            self.tray_icon.SetIcon(wx.Icon(get_resource(R".\icons\battery_100.ico")), self.get_tooltip())
+            self.tray_icon.SetIcon(self.icon_battery_100, self.get_tooltip())
             time.sleep(0.5)
 
 
