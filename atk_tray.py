@@ -38,7 +38,7 @@ def get_resource(relative_path):
     return os.path.join(base_dir, relative_path)
 
 
-def save_reg(data):
+def save_reg(data) -> None:
     soft = winreg.OpenKeyEx(winreg.HKEY_CURRENT_USER, "SOFTWARE")
     key = winreg.CreateKey(soft, "ATK_Tray")
     winreg.SetValueEx(key, "FullchargeDate", 0, winreg.REG_SZ, data)
@@ -76,85 +76,16 @@ def detect_mouse():
                 and device["usage"] == mouse.usage
             ):
                 if device["product_id"] == mouse.pid_wireless:
-                    mouse.wired_connection = False
+                    mouse.wired = False
                 else:
-                    mouse.wired_connection = True
+                    mouse.wired = True
                 mouse.device_path = device["path"]
                 logging.info(f"Detected model: {mouse.model}")
                 return mouse
 
 
 def get_battery(mouse: models.MouseClass):
-    device = hid.device()
-    device.open_path(mouse.device_path)
-    report = [0] * 17
-    report[0] = 8  # Report ID
-    report[1] = 4
-    report[16] = 73
-    logging.info(f"Sending report:  {report}")
-    device.write(report)
-    time.sleep(0.1)
-    res = device.read(17)
-    logging.info(f"Recieved report: {res}")
-    device.close()
-    battery = res[6]
-    wired = res[7]
-    logging.info(f"Battery: {battery}, Wired: {bool(wired)}")
-    return battery, wired
-
-
-# TODO make get_battery and get_battery1 work the same for two protocols
-def get_battery1(device_path: bytes, wired: bool = False):
-    device = hid.device()
-    try:
-        device.open_path(device_path)
-
-        report = [0] * 64
-        report[0] = 0x08
-
-        if wired:
-            # Wired battery request
-            report[1] = 0x7C
-            report[2] = 0x72
-            report[3] = 0x02
-            report[4] = 0x00
-            report[5] = 0x00
-            report[6] = 0x07
-            report[7] = 0x01
-        else:
-            # Wireless battery request
-            report[1] = 0x7D
-            report[2] = 0x72
-            report[3] = 0x02
-            report[4] = 0x00
-            report[5] = 0x01
-            report[6] = 0x07
-            report[7] = 0x01
-
-        logging.info(f"Sending report: {report}")
-        device.write(report)
-
-        time.sleep(0.1)
-
-        res = device.read(64)
-        logging.info(f"Received report: {res}")
-
-        if not res or len(res) < 8:
-            raise RuntimeError("No valid response from device")
-
-        # Проверка, что это именно ответ на battery query
-        if res[1] != 0x72 or res[5] != 0x07:
-            raise RuntimeError(f"Unexpected response: {res}")
-
-        battery = res[7]
-
-        return battery
-
-    finally:
-        try:
-            device.close()
-        except:
-            pass
+    return models.get_battery(mouse)
 
 
 def create_icon(text: str, color, font):
@@ -278,10 +209,28 @@ class MyFrame(wx.Frame):
             return
 
         battery, wired = result
-        self.battery_str = str(battery)
         self.wired = wired
 
-        if wired and battery < 100:
+        if battery is None:
+            if wired:
+                self.battery_str = ""
+                self.fullcharged = False
+                self.stop_animation = False
+                if not self.animation_thread.is_alive():
+                    self.animation_thread.start()
+                return
+
+            self.fullcharged = False
+            self.stop_animation = True
+            self.battery_str = "-"
+            if self.animation_thread.is_alive():
+                self.animation_thread.join()
+            self.tray_icon.SetIcon(create_icon(self.battery_str, foreground_color, font), self.get_tooltip())
+            return
+
+        self.battery_str = str(battery)
+
+        if wired and (battery < 100 or self.mouse.protocol == 2):
             self.fullcharged = False
             self.stop_animation = False
             if not self.animation_thread.is_alive():
