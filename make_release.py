@@ -24,7 +24,7 @@ def main():
             "--noconsole",
             "--noconfirm",
             "--onedir",
-            "--icon=.\\icons\\vxe.ico",
+            "--icon=.\\icons\\icon.ico",
             "--add-data=icons\\battery_0.ico;.\\icons",
             "--add-data=icons\\battery_50.ico;.\\icons",
             "--add-data=icons\\battery_100.ico;.\\icons",
