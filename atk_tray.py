@@ -15,7 +15,15 @@ from wx.adv import NotificationMessage, TaskBarIcon
 import models
 
 ctypes.windll.shcore.SetProcessDpiAwareness(2)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%d.%m.%Y %H:%M:%S",
+    handlers=[
+        logging.FileHandler("ATK_tray.log"),
+        logging.StreamHandler(),
+    ],
+)
 
 # Colors
 RED = (255, 0, 0)
