@@ -33,7 +33,7 @@ def main():
             "atk_tray.py",
         ]
         run_command(pyinstaller_cmd)
-        print(f"\n=== Release successfully created! ===")
+        print("\n=== Release successfully created! ===")
 
     except Exception as e:
         print(f"Error creating release: {e}")

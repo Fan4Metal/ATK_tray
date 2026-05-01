@@ -183,6 +183,12 @@ class MyFrame(wx.Frame):
         self.thread = threading.Thread(target=self.thread_worker, daemon=True)
         self.thread.start()
 
+    def set_tray_icon(self, icon, tooltip):
+        wx.CallAfter(self.tray_icon.SetIcon, icon, tooltip)
+
+    def show_notification(self):
+        wx.CallAfter(self.notification.Show, timeout=wx.adv.NotificationMessage.Timeout_Auto)
+
     def get_tooltip(self):
         if self.full_charge_date:
             delta = datetime.now() - self.full_charge_date
@@ -199,7 +205,12 @@ class MyFrame(wx.Frame):
     def thread_worker(self):
         self.fullcharged = False
         while True:
-            self.show_battery()
+            try:
+                self.show_battery()
+            except Exception:
+                logging.exception("Battery polling failed")
+                self.battery_str = "-"
+                self.wired = False
             if self.battery_str == "-" or self.wired:
                 time.sleep(1)
             else:
@@ -207,13 +218,14 @@ class MyFrame(wx.Frame):
 
     def show_battery(self):
         result = get_battery(self.mouse)
+        logging.info(f"Battery polling result: {result}")
 
         if result is None:
             self.stop_animation = True
             self.battery_str = "-"
             if self.animation_thread.is_alive():
                 self.animation_thread.join()
-            self.tray_icon.SetIcon(create_icon(self.battery_str, foreground_color, font), "No Mouse Detected")
+            self.set_tray_icon(create_icon(self.battery_str, foreground_color, font), "No Mouse Detected")
             return
 
         battery, wired = result
@@ -233,7 +245,7 @@ class MyFrame(wx.Frame):
             self.battery_str = "-"
             if self.animation_thread.is_alive():
                 self.animation_thread.join()
-            self.tray_icon.SetIcon(create_icon(self.battery_str, foreground_color, font), self.get_tooltip())
+            self.set_tray_icon(create_icon(self.battery_str, foreground_color, font), self.get_tooltip())
             return
 
         self.battery_str = str(battery)
@@ -249,10 +261,10 @@ class MyFrame(wx.Frame):
             self.stop_animation = True
             if self.animation_thread.is_alive():
                 self.animation_thread.join()
-            self.tray_icon.SetIcon(self.icon_battery_100_green, self.get_tooltip())
+            self.set_tray_icon(self.icon_battery_100_green, self.get_tooltip())
             if not self.fullcharged:
                 self.fullcharged = True
-                self.notification.Show(timeout=wx.adv.NotificationMessage.Timeout_Auto)
+                self.show_notification()
             return
 
         if battery == 100 and not wired:
@@ -265,22 +277,22 @@ class MyFrame(wx.Frame):
             self.battery_str = str(battery)
             if self.animation_thread.is_alive():
                 self.animation_thread.join()
-            self.tray_icon.SetIcon(self.icon_battery_100, self.get_tooltip())
+            self.set_tray_icon(self.icon_battery_100, self.get_tooltip())
             return
 
         self.fullcharged = False
         self.stop_animation = True
         if self.animation_thread.is_alive():
             self.animation_thread.join()
-        self.tray_icon.SetIcon(create_icon(self.battery_str, foreground_color, font), self.get_tooltip())
+        self.set_tray_icon(create_icon(self.battery_str, foreground_color, font), self.get_tooltip())
 
     def charge_animation(self):
         while not self.stop_animation:
-            self.tray_icon.SetIcon(self.icon_battery_0, self.get_tooltip())
+            self.set_tray_icon(self.icon_battery_0, self.get_tooltip())
             time.sleep(0.5)
-            self.tray_icon.SetIcon(self.icon_battery_50, self.get_tooltip())
+            self.set_tray_icon(self.icon_battery_50, self.get_tooltip())
             time.sleep(0.5)
-            self.tray_icon.SetIcon(self.icon_battery_100, self.get_tooltip())
+            self.set_tray_icon(self.icon_battery_100, self.get_tooltip())
             time.sleep(0.5)
 
 

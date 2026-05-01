@@ -43,8 +43,8 @@ def get_battery_1(mouse: MouseClass):
     finally:
         try:
             device.close()
-        except:
-            pass
+        except Exception as e:
+            logging.exception(e)
 
 
 def get_battery_2(mouse: MouseClass):
@@ -68,7 +68,7 @@ def get_battery_2(mouse: MouseClass):
         report[6] = 0x07
         report[7] = 0x01
 
-        logging.info(f"Sending report: {report}")
+        logging.info(f"Sending report:  {report}")
         device.write(report)
         time.sleep(0.1)
 
@@ -76,10 +76,12 @@ def get_battery_2(mouse: MouseClass):
         logging.info(f"Received report: {res}")
 
         if not res or len(res) < 8:
-            raise RuntimeError("No valid response from device")
+            logging.warning("No valid response from device")
+            return None, mouse.wired
 
         if res[1] != 0x72 or res[5] != 0x07:
-            raise RuntimeError(f"Unexpected response: {res}")
+            logging.warning(f"Unexpected response: {res}")
+            return None, mouse.wired
 
         if mouse.wired:
             logging.info("Protocol 2 wired connection does not report a reliable battery level")
@@ -91,8 +93,8 @@ def get_battery_2(mouse: MouseClass):
     finally:
         try:
             device.close()
-        except:
-            pass
+        except Exception as e:
+            logging.exception(e)
 
 
 def get_battery(mouse: MouseClass):
