@@ -22,6 +22,21 @@ class MouseClass:
 
 
 def get_battery_1(mouse: MouseClass):
+    """Read battery state using the first ATK HID protocol.
+
+    Protocol 1 uses a 17-byte feature/output report with report ID 0x08.
+    The request sets byte 1 to 0x04 and byte 16 to 0x49, then reads a
+    17-byte response. In the response byte 6 contains the battery level
+    and byte 7 contains the connection flag, where a non-zero value means
+    the mouse is connected over wire.
+    
+    Used for ATK F1 Ultimate, ATK A9 Ultimate, ATK Zero, VXE MAD R,
+    VXE MAD R Major Plus, VXE R1 Pro Max, and VXE R1 SE+ on Nordic 52840 MCU.
+    
+    Returns:
+        tuple[int, int]: Battery percentage and raw wired flag from the
+        device response.
+    """
     device = hid.device()
     try:
         device.open_path(mouse.device_path)
@@ -48,6 +63,26 @@ def get_battery_1(mouse: MouseClass):
 
 
 def get_battery_2(mouse: MouseClass):
+    """Read battery state using the second ATK HID protocol.
+
+    Protocol 2 uses a 64-byte report with report ID 0x08 and command
+    marker 0x72. The request differs by connection type: wired devices use
+    byte 1 = 0x7C and byte 5 = 0x00, while wireless devices use byte 1 =
+    0x7D and byte 5 = 0x01. Common request bytes are byte 2 = 0x72, byte 3
+    = 0x02, byte 4 = 0x00, byte 6 = 0x07, and byte 7 = 0x01.
+
+    A valid response is expected to contain byte 1 = 0x72 and byte 5 =
+    0x07. Wireless responses report the battery level in byte 7. Wired
+    protocol 2 responses do not provide a reliable battery level, so the
+    function returns None for the battery in wired mode.
+    
+    Used for VXE Zero on Nordic 54L15 MCU.
+
+    Returns:
+        tuple[Optional[int], Optional[bool]]: Battery percentage, or None
+        when it is unavailable, and the connection mode stored on the
+        mouse object.
+    """
     device = hid.device()
     try:
         device.open_path(mouse.device_path)
